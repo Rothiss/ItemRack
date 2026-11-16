@@ -4658,6 +4658,7 @@ function Rack.IterateSwapQueue()
 	
 	elseif SpellIsTargeting() or CursorHasItem() then
 		-- check if in Spell Targeting mode to prevent disenchants/enchants
+		DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r Iterate bail: spell="..tostring(SpellIsTargeting()).." cursor="..tostring(CursorHasItem()))
 		Rack.StartTimer("WaitToIterate")
 		return
 
@@ -4686,6 +4687,7 @@ function Rack.IterateSwapQueue()
 			RackFrame:RegisterEvent("ITEM_LOCK_CHANGED")
 
 			Rack.SetSwapping = Rack.SwapQueue[idx].setname
+			DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r Iterate -> "..tostring(queue.direction).."  (entries left: "..tostring(table.getn(Rack.SwapQueueOrder))..")")
 
 			Rack.ClearLockList()
 
@@ -4804,10 +4806,12 @@ end
 function Rack.AnyLocked()
 
 	local locked,isLocked
+	local dbg = ""
 
 	for i=0,19 do
 		if IsInventoryItemLocked(i) then
 			locked = 1
+			dbg = dbg.." inv"..i
 			break
 		end
 	end
@@ -4818,12 +4822,16 @@ function Rack.AnyLocked()
 				_,_,isLocked = GetContainerItemInfo(i,j)
 				if isLocked then
 					locked = 1
+					dbg = dbg.." bag"..i.."/"..j
 					i,j=99,99
 				end
 			end
 		end
 	end
 
+	if locked and dbg ~= "" then
+		DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r locked:"..dbg)
+	end
 	return locked
 end
 
@@ -4838,7 +4846,9 @@ function Rack.OnItemLockChanged()
 		return
 	end
 
-	if not Rack.AnyLocked() then
+	local locked = Rack.AnyLocked()
+	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r ITEM_LOCK_CHANGED, AnyLocked="..tostring(locked).." (head="..tostring(Rack.SwapQueue[Rack.SwapQueueOrder[1]] and Rack.SwapQueue[Rack.SwapQueueOrder[1]].direction)..")")
+	if not locked then
 		local setname = Rack.SwapQueue[Rack.SwapQueueOrder[1]].setname
 		if not string.find(setname,"^Rack-") and not string.find(setname,"^ItemRack") then
 			Rack_User[user].CurrentSet = setname
