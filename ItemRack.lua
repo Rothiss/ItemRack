@@ -4482,12 +4482,25 @@ function Rack.EquipSet(setname)
 						Rack.LockList[-2][inv] = 1
 						_,_,_,sourceEquipSlot = Rack.GetItemInfo(inv)
 						_,_,_,destEquipSlot = Rack.GetItemInfo(i)
-						swap.direction="INVTOINV" -- if the item can exist in both slots
-						swap.sourceInv = inv
-						hasINVTOINV = 1
-						if destEquipSlot and sourceEquipSlot and not (Rack.SlotInfo[i][sourceEquipSlot] and Rack.SlotInfo[inv][destEquipSlot]) then
-							swap.needsEmptied = 1
-							hasINVTOBAG = 1
+						-- Special case: the main-hand weapon moves to the off-hand slot while an
+						-- "actual offhand" (shield/etc, not a one-hander) is equipped and the new
+						-- main-hand comes from a bag. Equip the new main-hand first and let the
+						-- vanilla swap chain the old weapon through the axe's old bag slot, instead
+						-- of an INVTOINV that pulls the weapon out of the main hand and triggers
+						-- the client's weapon-swap lock bug.
+						if i == 17 and inv == 16 and destEquipSlot and not Rack.SlotInfo[16][destEquipSlot] and Rack.SwapList[16].direction == "BAGTOINV" then
+							swap.direction = "BAGTOINV"
+							swap.sourceBag = Rack.SwapList[16].sourceBag
+							swap.sourceSlot = Rack.SwapList[16].sourceSlot
+							hasBAGTOINV = 1
+						else
+							swap.direction="INVTOINV" -- if the item can exist in both slots
+							swap.sourceInv = inv
+							hasINVTOINV = 1
+							if destEquipSlot and sourceEquipSlot and not (Rack.SlotInfo[i][sourceEquipSlot] and Rack.SlotInfo[inv][destEquipSlot]) then
+								swap.needsEmptied = 1
+								hasINVTOBAG = 1
+							end
 						end
 					elseif bag and slot then -- found it in a bag slot
 						Rack.LockList[bag][slot] = 1
