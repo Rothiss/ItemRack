@@ -4710,13 +4710,40 @@ function Rack.IterateSwapQueue()
 					end
 				end
 			elseif queue.direction == "INVTOINV" then
+				local vacatedWeaponSlot
 				for i=0,19 do
 					if queue[i].fromSlot then
+						if queue[i].fromSlot == 16 or queue[i].fromSlot == 17 then
+							vacatedWeaponSlot = queue[i].fromSlot
+						end
 						PickupInventoryItem(queue[i].fromSlot)
 						PickupInventoryItem(i)
 					end
 				end
+				-- Atomic fill: if a weapon slot was just vacated, immediately fill it
+				-- from its pending BAGTOINV entry so the client's weapon-swap mechanic
+				-- doesn't auto-equip a bagged weapon there and leave it stuck-locked.
+				if vacatedWeaponSlot then
+					for j=1,table.getn(Rack.SwapQueueOrder) do
+						local q2 = Rack.SwapQueue[Rack.SwapQueueOrder[j]]
+						if q2.direction == "BAGTOINV" and q2[vacatedWeaponSlot].fromBag then
+							PickupContainerItem(q2[vacatedWeaponSlot].fromBag, q2[vacatedWeaponSlot].fromSlot)
+							PickupInventoryItem(vacatedWeaponSlot)
+							q2[vacatedWeaponSlot].fromBag = nil
+							q2[vacatedWeaponSlot].fromSlot = nil
+						end
+					end
+				end
 			elseif queue.direction == "BAGTOINV" then
+				local hasFromBag
+				for k=0,19 do
+					if queue[k].fromBag then hasFromBag = 1 end
+				end
+				if not hasFromBag then
+					Rack.RemoveQueueEntry(idx)
+					Rack.IterateSwapQueue()
+					return
+				end
 				for i=0,19 do
 					if queue[i].fromBag then
 						_,id = Rack.GetItemInfo(queue[i].fromBag,queue[i].fromSlot)
