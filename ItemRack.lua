@@ -4512,7 +4512,7 @@ function Rack.EquipSet(setname)
 						swap.direction="INVTOINV" -- if the item can exist in both slots
 						swap.sourceInv = inv
 						hasINVTOINV = 1
-						if destEquipSlot and sourceEquipSlot and not (Rack.SlotInfo[i][sourceEquipSlot] and Rack.SlotInfo[inv][destEquipSlot]) then
+						if destEquipSlot and sourceEquipSlot and not (Rack.SlotInfo[i][sourceEquipSlot] and Rack.SlotInfo[inv][destEquipSlot] and set[inv] and set[inv].id == id) then
 							swap.needsEmptied = 1
 							hasINVTOBAG = 1
 						end
