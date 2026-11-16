@@ -6,6 +6,7 @@ ItemRack — a World of Warcraft **vanilla 1.12.1** (2004 client) gear/trinket-s
 
 - `ItemRack.toc` — addon manifest (`## Interface: 11200`). Load order matters: `localization.lua` (defines `ItemRackText`) → `ItemRack.lua` → `ItemRack.xml` → `ItemRackSets.xml` → `mountGUID.lua` (defines `ItemRack.mountGUIDs`, used at runtime).
 - `ItemRack.lua` — essentially all core logic (~5k lines): the `Rack` object and the swap queue.
+- `README.md` — brief fork-facing intro/features; `readme.txt` is Gello's original full manual.
 - `ItemRackFu/` — optional FuBar plugin; not loaded unless moved into the Addons root.
 - `.github/workflows/sync-fork.yml` — auto-merges upstream `McPewPew/ItemRack` (`master`) into this fork daily; local edits to shared files can conflict on the next sync.
 

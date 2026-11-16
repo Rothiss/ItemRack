@@ -1,43 +1,27 @@
 # ItemRack
 
-If your mount is no longer detected by ItemRack, please do the following - 
-1. Run this macro in game while you are mounted,
-```
-/run for i=1,32 do local t,_,g=UnitBuff("player",i);if not t then break end print(t,g) end
-```
-2. Screenshot what the macro prints and the tooltip of the buff you have while mounted,
-3. Either paste your screenshot into an issue here or @McPewPew on the TurtleWoW Discord,
-4. While you wait patiently for me to add your mount, you can try this in the meantime - 
-copy/paste the code below into your Mount event, replacing the existing text,
-```
-local mount
-if UnitIsMounted then mount = UnitIsMounted("player") else mount = ItemRack_PlayerMounted(true) end
-if not IR_MOUNT and mount then
-  EquipSet()
-elseif IR_MOUNT and not mount then
-  LoadSet()
-end
-IR_MOUNT=mount
---[[Equips set to be worn while mounted.]]
-```
-<img width="1566" height="933" alt="image" src="https://github.com/user-attachments/assets/9aa10ed9-d70d-4e0d-b361-a0fc9be86a30" />
-While this *should* hopefully work, it's a lot less efficent.
+Gear, set, and trinket management for World of Warcraft **1.12.1** (TurtleWoW-style servers).
 
-### Mount Event Reliability (Turtle WoW)  
-Mount detection via spell IDs with improved fallback handling.  
-***New event*** – "Mount(Not ZG/AQ)" set switching when mounting, but disabled in AQ and ZG.
+A fork of [McPewPew/ItemRack](https://github.com/McPewPew/ItemRack) (itself based on Gello's original ItemRack), with TurtleWoW support and an off-hand weapon-swap fix.
 
-### Goblin Brainwashing Device Support  
-Automatically set switch when using the Goblin Brainwashing Device.  
-***New events*** – "Brainwashing 1-4" activate the event for each specialization.
+## Features
 
-### Localization
-Initial Chinese (zhCN) client support has been added.  
-This includes localization for Goblin Brainwashing Device detection and mount tooltip parsing.
-<br>
+- Per-slot quick-swap menus, item sets, keybinds, and event-driven auto-swapping (see `readme.txt` for full usage)
+- TurtleWoW mount detection via spell IDs
+- Goblin Brainwashing Device support (auto set-switch per specialization)
+- Chinese (zhCN) localization
+- Optional FuBar plugin (`ItemRackFu/`)
 
-### FuBar
-If you want to use ItemRackFu, drag the ItemRackFu folder into the main Addons folder.
+## Fork changes
 
-##
-Mounting improvements and GBD support with assistance from [Sleepybear](https://github.com/McPewPew/ItemRack/pull/13/changes/bbc8d6ea784373ffa5c4c2a7325c40bb62bd9fd5)
+- Fixed main-hand ↔ off-hand weapon swaps (e.g. dagger + offhand → axe + dagger) that previously left an item locked and required a re-log.
+
+## Install
+
+Copy the `ItemRack` folder (the one containing `ItemRack.toc`) into `Interface/AddOns`. For FuBar support, also copy `ItemRackFu` into `Interface/AddOns`.
+
+## Mount not detected?
+
+Run this while mounted and paste the output into an issue:
+
+    /run for i=1,32 do local t,_,g=UnitBuff("player",i);if not t then break end print(t,g) end
