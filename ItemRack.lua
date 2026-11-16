@@ -1750,6 +1750,16 @@ end
 
 function ItemRack_ReactUseInventoryItem(slot)
 
+	if Rack.UseQueue[slot] and Rack.CombatQueue[slot] then
+		-- an on-use queued item was just used: swap in the queued item now
+		Rack.UseQueue[slot] = nil
+		Rack_User[user].Sets["Rack-CombatQueue"][slot].id = Rack.CombatQueue[slot]
+		Rack.CombatQueue[slot] = nil
+		_G["ItemRackInv"..slot.."Queue"]:Hide()
+		_G[ItemRack.Indexes[slot].paperdoll_slot.."Queue"]:Hide()
+		Rack.EquipSet("Rack-CombatQueue")
+	end
+
 	if ItemRack_Users[user].Inv[slot] then
 		_G["ItemRackInv"..slot]:SetChecked(1)
 	end
@@ -1946,12 +1956,26 @@ function ItemRack_Menu_OnClick(arg1)
 		end
 
 	elseif (UnitAffectingCombat("player") and not ItemRack.Indexes[ItemRack.InvOpen].swappable) or Rack.IsPlayerReallyDead() then
-		-- if selecting a menu item while dead
+		-- if selecting a menu item while dead or in combat
 		if ItemRack.BaggedItems[id].name=="(empty)" then
 			Rack.AddToCombatQueue(ItemRack.InvOpen,0)
+			Rack.UseQueue[ItemRack.InvOpen] = IsShiftKeyDown() and true or nil
 		else
 			local _,itemID = Rack.GetItemInfo(ItemRack.BaggedItems[id].bag,ItemRack.BaggedItems[id].slot)
 			Rack.AddToCombatQueue(ItemRack.InvOpen,itemID)
+			Rack.UseQueue[ItemRack.InvOpen] = IsShiftKeyDown() and true or nil
+		end
+		ItemRack_MenuFrame:Hide()
+
+	elseif IsShiftKeyDown() and ItemRack.InvOpen and cursor_empty() and not SpellIsTargeting() then
+		-- shift-click out of combat: on-use queue, swap in after the equipped item is used
+		if ItemRack.BaggedItems[id].name=="(empty)" then
+			Rack.AddToCombatQueue(ItemRack.InvOpen,0)
+			Rack.UseQueue[ItemRack.InvOpen] = true
+		else
+			local _,itemID = Rack.GetItemInfo(ItemRack.BaggedItems[id].bag,ItemRack.BaggedItems[id].slot)
+			Rack.AddToCombatQueue(ItemRack.InvOpen,itemID)
+			Rack.UseQueue[ItemRack.InvOpen] = true
 		end
 		ItemRack_MenuFrame:Hide()
 
@@ -3934,7 +3958,8 @@ Rack = {
 	SetSwapping = nil, -- name of a set currently being swapped
 	SwapList = {}, -- individual item swap details go here
 	LockList = {}, -- tables of bags where slots are locked (to be skipped in FindItem and FindSpace)
-	CombatQueue = {} -- table of items to swap in when dropping out of combat/death
+	CombatQueue = {}, -- table of items to swap in when dropping out of combat/death
+	UseQueue = {} -- table of items to swap in after the item in that slot is used
 }
 
 Rack.SlotInfo = {
@@ -4000,7 +4025,7 @@ function Rack.OnEvent()
 		-- player is coming out of combat or being res'ed.  EquipSet the CombatQueue
 		local somethingQueued
 		for i=0,19 do
-			if Rack.CombatQueue[i] then
+			if Rack.CombatQueue[i] and not Rack.UseQueue[i] then
 				Rack_User[user].Sets["Rack-CombatQueue"][i].id=Rack.CombatQueue[i]
 				Rack.CombatQueue[i] = nil
 				somethingQueued = 1
@@ -4008,8 +4033,10 @@ function Rack.OnEvent()
 				Rack_User[user].Sets["Rack-CombatQueue"][i].id = nil
 				Rack_User[user].Sets["Rack-CombatQueue"][i].name = nil
 			end
-			_G["ItemRackInv"..i.."Queue"]:Hide()
-			_G[ItemRack.Indexes[i].paperdoll_slot.."Queue"]:Hide()
+			if not Rack.UseQueue[i] then
+				_G["ItemRackInv"..i.."Queue"]:Hide()
+				_G[ItemRack.Indexes[i].paperdoll_slot.."Queue"]:Hide()
+			end
 		end
 		if somethingQueued then
 			Rack.EquipSet("Rack-CombatQueue")
@@ -4844,6 +4871,7 @@ function Rack.AddToCombatQueue(slot,id)
 	local _,wornId = Rack.GetItemInfo(slot)
 	if Rack.CombatQueue[slot]==id or id==wornId then
 		Rack.CombatQueue[slot] = nil
+		Rack.UseQueue[slot] = nil
 		button:Hide()
 		paperdoll:Hide()
 	elseif id and id~=wornId then
