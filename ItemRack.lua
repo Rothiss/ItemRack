@@ -4384,6 +4384,7 @@ function Rack.ClearSwapListEntry(idx)
 	Rack.SwapList[idx].direction = nil
 	Rack.SwapList[idx].desiredName = nil
 	Rack.SwapList[idx].needsEmptied = nil
+	Rack.SwapList[idx].deferredBAGTOINV = nil
 end
 
 -- returns the currently worn set, or last set worn
@@ -4492,6 +4493,7 @@ function Rack.EquipSet(setname)
 							swap.direction = "BAGTOINV"
 							swap.sourceBag = Rack.SwapList[16].sourceBag
 							swap.sourceSlot = Rack.SwapList[16].sourceSlot
+							swap.deferredBAGTOINV = 1
 							hasBAGTOINV = 1
 						else
 							swap.direction="INVTOINV" -- if the item can exist in both slots
@@ -4568,11 +4570,31 @@ function Rack.EquipSet(setname)
 		Rack.AddQueueEntry(idx)
 		Rack.SwapQueue[idx].direction = "BAGTOINV"
 		Rack.SwapQueue[idx].setname = setname
+		local hasDeferredBAGTOINV
 		for i=0,19 do
 			if Rack.SwapList[i].direction=="BAGTOINV" then
-				Rack.SwapQueue[idx][i].id = set[i].id
-				Rack.SwapQueue[idx][i].fromBag = Rack.SwapList[i].sourceBag
-				Rack.SwapQueue[idx][i].fromSlot = Rack.SwapList[i].sourceSlot
+				if Rack.SwapList[i].deferredBAGTOINV then
+					hasDeferredBAGTOINV = 1
+				else
+					Rack.SwapQueue[idx][i].id = set[i].id
+					Rack.SwapQueue[idx][i].fromBag = Rack.SwapList[i].sourceBag
+					Rack.SwapQueue[idx][i].fromSlot = Rack.SwapList[i].sourceSlot
+				end
+			end
+		end
+		-- deferred (chained weapon) swaps run in a second pass, after the first
+		-- BAGTOINV has settled so the displaced weapon has landed in its bag slot
+		if hasDeferredBAGTOINV then
+			idx = Rack.GetFreeQueueEntry()
+			Rack.AddQueueEntry(idx)
+			Rack.SwapQueue[idx].direction = "BAGTOINV"
+			Rack.SwapQueue[idx].setname = setname
+			for i=0,19 do
+				if Rack.SwapList[i].direction=="BAGTOINV" and Rack.SwapList[i].deferredBAGTOINV then
+					Rack.SwapQueue[idx][i].id = set[i].id
+					Rack.SwapQueue[idx][i].fromBag = Rack.SwapList[i].sourceBag
+					Rack.SwapQueue[idx][i].fromSlot = Rack.SwapList[i].sourceSlot
+				end
 			end
 		end
 	end
