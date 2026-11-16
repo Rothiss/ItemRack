@@ -1750,16 +1750,6 @@ end
 
 function ItemRack_ReactUseInventoryItem(slot)
 
-	if Rack.UseQueue[slot] and Rack.CombatQueue[slot] then
-		-- an on-use queued item was just used: swap in the queued item now
-		Rack.UseQueue[slot] = nil
-		Rack_User[user].Sets["Rack-CombatQueue"][slot].id = Rack.CombatQueue[slot]
-		Rack.CombatQueue[slot] = nil
-		_G["ItemRackInv"..slot.."Queue"]:Hide()
-		_G[ItemRack.Indexes[slot].paperdoll_slot.."Queue"]:Hide()
-		Rack.EquipSet("Rack-CombatQueue")
-	end
-
 	if ItemRack_Users[user].Inv[slot] then
 		_G["ItemRackInv"..slot]:SetChecked(1)
 	end
@@ -1956,26 +1946,12 @@ function ItemRack_Menu_OnClick(arg1)
 		end
 
 	elseif (UnitAffectingCombat("player") and not ItemRack.Indexes[ItemRack.InvOpen].swappable) or Rack.IsPlayerReallyDead() then
-		-- if selecting a menu item while dead or in combat
+		-- if selecting a menu item while dead
 		if ItemRack.BaggedItems[id].name=="(empty)" then
 			Rack.AddToCombatQueue(ItemRack.InvOpen,0)
-			Rack.UseQueue[ItemRack.InvOpen] = IsShiftKeyDown() and true or nil
 		else
 			local _,itemID = Rack.GetItemInfo(ItemRack.BaggedItems[id].bag,ItemRack.BaggedItems[id].slot)
 			Rack.AddToCombatQueue(ItemRack.InvOpen,itemID)
-			Rack.UseQueue[ItemRack.InvOpen] = IsShiftKeyDown() and true or nil
-		end
-		ItemRack_MenuFrame:Hide()
-
-	elseif IsShiftKeyDown() and ItemRack.InvOpen and cursor_empty() and not SpellIsTargeting() then
-		-- shift-click out of combat: on-use queue, swap in after the equipped item is used
-		if ItemRack.BaggedItems[id].name=="(empty)" then
-			Rack.AddToCombatQueue(ItemRack.InvOpen,0)
-			Rack.UseQueue[ItemRack.InvOpen] = true
-		else
-			local _,itemID = Rack.GetItemInfo(ItemRack.BaggedItems[id].bag,ItemRack.BaggedItems[id].slot)
-			Rack.AddToCombatQueue(ItemRack.InvOpen,itemID)
-			Rack.UseQueue[ItemRack.InvOpen] = true
 		end
 		ItemRack_MenuFrame:Hide()
 
@@ -3958,8 +3934,7 @@ Rack = {
 	SetSwapping = nil, -- name of a set currently being swapped
 	SwapList = {}, -- individual item swap details go here
 	LockList = {}, -- tables of bags where slots are locked (to be skipped in FindItem and FindSpace)
-	CombatQueue = {}, -- table of items to swap in when dropping out of combat/death
-	UseQueue = {} -- table of items to swap in after the item in that slot is used
+	CombatQueue = {} -- table of items to swap in when dropping out of combat/death
 }
 
 Rack.SlotInfo = {
@@ -4025,7 +4000,7 @@ function Rack.OnEvent()
 		-- player is coming out of combat or being res'ed.  EquipSet the CombatQueue
 		local somethingQueued
 		for i=0,19 do
-			if Rack.CombatQueue[i] and not Rack.UseQueue[i] then
+			if Rack.CombatQueue[i] then
 				Rack_User[user].Sets["Rack-CombatQueue"][i].id=Rack.CombatQueue[i]
 				Rack.CombatQueue[i] = nil
 				somethingQueued = 1
@@ -4033,10 +4008,8 @@ function Rack.OnEvent()
 				Rack_User[user].Sets["Rack-CombatQueue"][i].id = nil
 				Rack_User[user].Sets["Rack-CombatQueue"][i].name = nil
 			end
-			if not Rack.UseQueue[i] then
-				_G["ItemRackInv"..i.."Queue"]:Hide()
-				_G[ItemRack.Indexes[i].paperdoll_slot.."Queue"]:Hide()
-			end
+			_G["ItemRackInv"..i.."Queue"]:Hide()
+			_G[ItemRack.Indexes[i].paperdoll_slot.."Queue"]:Hide()
 		end
 		if somethingQueued then
 			Rack.EquipSet("Rack-CombatQueue")
@@ -4512,7 +4485,7 @@ function Rack.EquipSet(setname)
 						swap.direction="INVTOINV" -- if the item can exist in both slots
 						swap.sourceInv = inv
 						hasINVTOINV = 1
-						if destEquipSlot and sourceEquipSlot and not (Rack.SlotInfo[i][sourceEquipSlot] and Rack.SlotInfo[inv][destEquipSlot] and set[inv] and set[inv].id == id) then
+						if destEquipSlot and sourceEquipSlot and not (Rack.SlotInfo[i][sourceEquipSlot] and Rack.SlotInfo[inv][destEquipSlot]) then
 							swap.needsEmptied = 1
 							hasINVTOBAG = 1
 						end
@@ -4545,16 +4518,6 @@ function Rack.EquipSet(setname)
 
 	if missing~="ItemRack could not find: " then
 		DEFAULT_CHAT_FRAME:AddMessage(string.gsub(missing,", $",""))
-	end
-
-	-- if the target equips an off-hand while a two-hand weapon is in the main
-	-- hand, bag the two-hander first so the off-hand equip doesn't get rejected
-	if set[17] and (set[17].id or set[17].name) then
-		local _,_,_,mainEquipLoc = Rack.GetItemInfo(16)
-		if mainEquipLoc == "INVTYPE_2HWEAPON" then
-			Rack.SwapList[16].needsEmptied = 1
-			hasINVTOBAG = 1
-		end
 	end
 
 	-- at this stage, Rack.SwapList[0]-[19] is populated
@@ -4668,7 +4631,6 @@ function Rack.IterateSwapQueue()
 	
 	elseif SpellIsTargeting() or CursorHasItem() then
 		-- check if in Spell Targeting mode to prevent disenchants/enchants
-		DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r Iterate bail: spell="..tostring(SpellIsTargeting()).." cursor="..tostring(CursorHasItem()))
 		Rack.StartTimer("WaitToIterate")
 		return
 
@@ -4697,7 +4659,6 @@ function Rack.IterateSwapQueue()
 			RackFrame:RegisterEvent("ITEM_LOCK_CHANGED")
 
 			Rack.SetSwapping = Rack.SwapQueue[idx].setname
-			DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r Iterate -> "..tostring(queue.direction).."  (entries left: "..tostring(table.getn(Rack.SwapQueueOrder))..")")
 
 			Rack.ClearLockList()
 
@@ -4816,12 +4777,10 @@ end
 function Rack.AnyLocked()
 
 	local locked,isLocked
-	local dbg = ""
 
 	for i=0,19 do
 		if IsInventoryItemLocked(i) then
 			locked = 1
-			dbg = dbg.." inv"..i
 			break
 		end
 	end
@@ -4832,60 +4791,13 @@ function Rack.AnyLocked()
 				_,_,isLocked = GetContainerItemInfo(i,j)
 				if isLocked then
 					locked = 1
-					dbg = dbg.." bag"..i.."/"..j
 					i,j=99,99
 				end
 			end
 		end
 	end
 
-	if locked and dbg ~= "" then
-		DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r locked:"..dbg)
-	end
 	return locked
-end
-
--- Recovers from vanilla client desyncs during weapon swaps: places an orphaned
--- cursor item, or nudges a stuck-locked bag item back into place.
-function Rack.RecoverSwap()
-	if CursorHasItem() then
-		-- orphaned item on the cursor: try main-hand, then off-hand, then a bag slot
-		if not GetInventoryItemLink("player", 16) then
-			PickupInventoryItem(16)
-		end
-		if CursorHasItem() and not GetInventoryItemLink("player", 17) then
-			PickupInventoryItem(17)
-		end
-		if CursorHasItem() then
-			local bag, slot = Rack.FindSpace()
-			if bag then
-				PickupContainerItem(bag, slot)
-			end
-		end
-		return
-	end
-	-- stuck bag lock: nudge it only if the same slot has been locked for > 2s
-	local now = GetTime()
-	for i=0,4 do
-		for j=1,GetContainerNumSlots(i) do
-			local _,_,isLocked = GetContainerItemInfo(i,j)
-			if isLocked then
-				local key = i.."/"..j
-				if Rack.StuckLockKey == key and (Rack.StuckLockTime or 0) + 2 < now then
-					Rack.StuckLockKey = nil
-					Rack.StuckLockTime = nil
-					DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r RecoverSwap: nudging stuck "..key)
-					PickupContainerItem(i, j)
-				else
-					Rack.StuckLockKey = key
-					Rack.StuckLockTime = now
-				end
-				return
-			end
-		end
-	end
-	Rack.StuckLockKey = nil
-	Rack.StuckLockTime = nil
 end
 
 -- when an iteration begins, on each ITEM_LOCK_CHANGED check if the swaps are done
@@ -4899,17 +4811,14 @@ function Rack.OnItemLockChanged()
 		return
 	end
 
-	local locked = Rack.AnyLocked()
-	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r ITEM_LOCK_CHANGED, AnyLocked="..tostring(locked).." (head="..tostring(Rack.SwapQueue[Rack.SwapQueueOrder[1]] and Rack.SwapQueue[Rack.SwapQueueOrder[1]].direction)..")")
-	if not locked then
+	if not Rack.AnyLocked() then
 		local setname = Rack.SwapQueue[Rack.SwapQueueOrder[1]].setname
 		if not string.find(setname,"^Rack-") and not string.find(setname,"^ItemRack") then
 			Rack_User[user].CurrentSet = setname
 		end
 		Rack.RemoveQueueEntry(Rack.SwapQueueOrder[1])
 		Rack.IterateSwapQueue()
-	end
-	Rack.RecoverSwap()
+	end	
 end
 
 --[[ Combat/Death Queue Processing ]]
@@ -4935,7 +4844,6 @@ function Rack.AddToCombatQueue(slot,id)
 	local _,wornId = Rack.GetItemInfo(slot)
 	if Rack.CombatQueue[slot]==id or id==wornId then
 		Rack.CombatQueue[slot] = nil
-		Rack.UseQueue[slot] = nil
 		button:Hide()
 		paperdoll:Hide()
 	elseif id and id~=wornId then
