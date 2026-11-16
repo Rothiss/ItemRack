@@ -4710,40 +4710,13 @@ function Rack.IterateSwapQueue()
 					end
 				end
 			elseif queue.direction == "INVTOINV" then
-				local vacatedWeaponSlot
 				for i=0,19 do
 					if queue[i].fromSlot then
-						if queue[i].fromSlot == 16 or queue[i].fromSlot == 17 then
-							vacatedWeaponSlot = queue[i].fromSlot
-						end
 						PickupInventoryItem(queue[i].fromSlot)
 						PickupInventoryItem(i)
 					end
 				end
-				-- Atomic fill: if a weapon slot was just vacated, immediately fill it
-				-- from its pending BAGTOINV entry so the client's weapon-swap mechanic
-				-- doesn't auto-equip a bagged weapon there and leave it stuck-locked.
-				if vacatedWeaponSlot then
-					for j=1,table.getn(Rack.SwapQueueOrder) do
-						local q2 = Rack.SwapQueue[Rack.SwapQueueOrder[j]]
-						if q2.direction == "BAGTOINV" and q2[vacatedWeaponSlot].fromBag then
-							PickupContainerItem(q2[vacatedWeaponSlot].fromBag, q2[vacatedWeaponSlot].fromSlot)
-							PickupInventoryItem(vacatedWeaponSlot)
-							q2[vacatedWeaponSlot].fromBag = nil
-							q2[vacatedWeaponSlot].fromSlot = nil
-						end
-					end
-				end
 			elseif queue.direction == "BAGTOINV" then
-				local hasFromBag
-				for k=0,19 do
-					if queue[k].fromBag then hasFromBag = 1 end
-				end
-				if not hasFromBag then
-					Rack.RemoveQueueEntry(idx)
-					Rack.IterateSwapQueue()
-					return
-				end
 				for i=0,19 do
 					if queue[i].fromBag then
 						_,id = Rack.GetItemInfo(queue[i].fromBag,queue[i].fromSlot)
@@ -4862,6 +4835,49 @@ function Rack.AnyLocked()
 	return locked
 end
 
+-- Recovers from vanilla client desyncs during weapon swaps: places an orphaned
+-- cursor item, or nudges a stuck-locked bag item back into place.
+function Rack.RecoverSwap()
+	if CursorHasItem() then
+		-- orphaned item on the cursor: try main-hand, then off-hand, then a bag slot
+		if not GetInventoryItemLink("player", 16) then
+			PickupInventoryItem(16)
+		end
+		if CursorHasItem() and not GetInventoryItemLink("player", 17) then
+			PickupInventoryItem(17)
+		end
+		if CursorHasItem() then
+			local bag, slot = Rack.FindSpace()
+			if bag then
+				PickupContainerItem(bag, slot)
+			end
+		end
+		return
+	end
+	-- stuck bag lock: nudge it only if the same slot has been locked for > 2s
+	local now = GetTime()
+	for i=0,4 do
+		for j=1,GetContainerNumSlots(i) do
+			local _,_,isLocked = GetContainerItemInfo(i,j)
+			if isLocked then
+				local key = i.."/"..j
+				if Rack.StuckLockKey == key and (Rack.StuckLockTime or 0) + 2 < now then
+					Rack.StuckLockKey = nil
+					Rack.StuckLockTime = nil
+					DEFAULT_CHAT_FRAME:AddMessage("|cff33ff33[IRDebug]|r RecoverSwap: nudging stuck "..key)
+					PickupContainerItem(i, j)
+				else
+					Rack.StuckLockKey = key
+					Rack.StuckLockTime = now
+				end
+				return
+			end
+		end
+	end
+	Rack.StuckLockKey = nil
+	Rack.StuckLockTime = nil
+end
+
 -- when an iteration begins, on each ITEM_LOCK_CHANGED check if the swaps are done
 -- if so, remove the current queue entry and go to the next one
 -- this is where swaps end
@@ -4882,7 +4898,8 @@ function Rack.OnItemLockChanged()
 		end
 		Rack.RemoveQueueEntry(Rack.SwapQueueOrder[1])
 		Rack.IterateSwapQueue()
-	end	
+	end
+	Rack.RecoverSwap()
 end
 
 --[[ Combat/Death Queue Processing ]]
